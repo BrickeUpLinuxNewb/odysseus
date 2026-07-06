@@ -2500,6 +2500,7 @@ function initializeEventListeners() {
     // inside the Tools section in the sidebar.
     'tool-calendar':       '#tool-calendar-btn',
     'tool-compare':        '#tool-compare-btn',
+    'tool-swt':            '#tool-swt-btn',
     'tool-cookbook':       '#tool-cookbook-btn',
     'tool-research':       '#tool-research-btn',
     'tool-gallery':        '#tool-gallery-btn',
