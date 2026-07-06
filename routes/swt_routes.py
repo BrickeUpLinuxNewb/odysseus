@@ -28,10 +28,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/swt", tags=["swt"])
 
 # Process-wide singletons: one store + one cognitive model, created lazily so
-# importing this module never touches the filesystem or the LLM stack.
+# importing this module never touches the filesystem or the LLM stack. The
+# model adapter is NOT a singleton — it is created per run (see `run`) so its
+# endpoint-resolution cache is scoped to a single loop and can never serve a
+# stale API key after the user reconfigures an endpoint.
 _store = None
 _cognitive = None
-_adapter = None
 
 
 def _get_store():
@@ -52,34 +54,29 @@ def _get_cognitive():
     return _cognitive
 
 
-def _get_adapter():
-    global _adapter
-    if _adapter is None:
-        from src.swt import OdysseusModelAdapter
-
-        _adapter = OdysseusModelAdapter()
-    return _adapter
-
-
 class RunRequest(BaseModel):
-    prompt: str = Field(..., min_length=1)
-    generator_model: str = Field(..., min_length=1)
-    critic_model: str = Field(..., min_length=1)
-    analyzer_model: str = ""
+    # Length caps bound the work a single request can trigger. Without a cap on
+    # `context`, a huge paste fans out into thousands of recursive-condense LLM
+    # calls, which can hang a low-power node. ~200 KB is generous for reference
+    # material while keeping the chunk count (and cost) bounded.
+    prompt: str = Field(..., min_length=1, max_length=100_000)
+    generator_model: str = Field(..., min_length=1, max_length=200)
+    critic_model: str = Field(..., min_length=1, max_length=200)
+    analyzer_model: str = Field("", max_length=200)
     max_rounds: int = Field(4, ge=1, le=8)
     satisfaction_threshold: float = Field(0.7, ge=0.0, le=1.0)
-    context: str = ""
+    context: str = Field("", max_length=200_000)
     use_recursive_context: bool = True
     use_cognitive_model: bool = True
     temperature: float = Field(0.7, ge=0.0, le=2.0)
 
 
 class FeedbackRequest(BaseModel):
-    prompt: str = Field(..., min_length=1)
-    answer: str = Field(..., min_length=1)
+    prompt: str = Field(..., min_length=1, max_length=100_000)
+    answer: str = Field(..., min_length=1, max_length=200_000)
     accepted: bool
-    loop_id: Optional[str] = None
-    note: str = ""
+    loop_id: Optional[str] = Field(None, max_length=64)
+    note: str = Field("", max_length=2_000)
 
 
 def setup_swt_routes(session_manager: SessionManager):
@@ -110,10 +107,14 @@ def setup_swt_routes(session_manager: SessionManager):
             owner=owner,
         )
 
+        from src.swt import OdysseusModelAdapter
+
+        adapter = OdysseusModelAdapter()  # per-run: cache scoped to this loop
+
         async def _generate():
             try:
                 async for event in run_loop(
-                    cfg, _get_adapter(), _get_store(), _get_cognitive()
+                    cfg, adapter, _get_store(), _get_cognitive()
                 ):
                     yield f"data: {json.dumps(event)}\n\n"
             except Exception as exc:  # never leave the stream hanging

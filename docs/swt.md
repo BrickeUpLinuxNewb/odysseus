@@ -94,6 +94,33 @@ to Odysseus's main schema, so there is no migration and no risk to existing
 data. It stores each loop result and the accept/reject feedback that the
 cognitive model learns from.
 
+## Security notes
+
+- **No code execution.** SWT only generates and displays *text*. It never runs
+  model-generated code and never invokes Odysseus tools/shell from a loop
+  result. The external Recursive Language Model packages work by executing
+  model-written Python in a REPL; SWT deliberately does **not** use that path —
+  it only checks whether the package is importable and runs its own condenser.
+- **Owner-scoped.** Every endpoint requires an authenticated user. Loops,
+  history, and cognitive-model feedback are filtered by owner, and model
+  resolution goes through Odysseus's owner-scoped resolver, so one user can
+  never read another's loops or use another's endpoint/API keys. There is no
+  raw-URL input, so the model field cannot be turned into an SSRF vector.
+- **Output escaping.** Model names and all streamed content are HTML-escaped for
+  both text and attribute contexts before rendering, so a poisoned/rogue model
+  server on the LAN cannot inject markup or attributes into the browser.
+- **Bounded work.** Request size (prompt/context), round count, and the
+  recursive condenser's chunk fan-out are all capped, so a single request cannot
+  spiral into an unbounded number of model calls on a low-power node.
+- **Prompt injection.** Reference material and the request are untrusted input to
+  the models. A crafted context could talk the critic into accepting a bad
+  answer, but this does not cross a privilege boundary — the worst case is a
+  lower-quality answer, never code execution or data access. Treat pasted
+  context the same way you treat any untrusted document.
+- **Local data.** `data/swt.db` stores your prompts, answers, and accept/reject
+  feedback in plaintext SQLite. Keep it out of Git (the repo already ignores
+  `data/`) and treat it like the rest of your private data.
+
 ## Design notes
 
 - The engine (`src/swt/`) never imports the LLM stack directly; it talks to a

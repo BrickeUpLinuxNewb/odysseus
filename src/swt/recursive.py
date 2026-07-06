@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 # Roughly 4 chars/token; keep chunks well under a small local model's window.
 _DEFAULT_CHUNK_CHARS = 6000
 _DEFAULT_BUDGET_CHARS = 6000
+# Hard ceiling on how many chunks one condense pass will process, so a single
+# request can never fan out into an unbounded number of LLM calls (a
+# denial-of-service / cost risk on low-power nodes). Combined with the route's
+# context length cap this bounds total calls to a small constant.
+_MAX_CHUNKS_PER_PASS = 48
 
 
 def rlm_available() -> bool:
@@ -91,6 +96,10 @@ async def condense_context(
         chunks = _split(current, chunk_chars)
         if len(chunks) <= 1:
             break
+        if len(chunks) > _MAX_CHUNKS_PER_PASS:
+            # Too many chunks to process safely: keep only the leading portion
+            # rather than firing an unbounded number of model calls.
+            chunks = chunks[:_MAX_CHUNKS_PER_PASS]
         summaries: List[str] = []
         for idx, chunk in enumerate(chunks):
             messages = [
