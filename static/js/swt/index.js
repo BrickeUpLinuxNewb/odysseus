@@ -24,8 +24,12 @@ const CATEGORY_LABELS = {
 };
 
 function _esc(s) {
+  // Escapes for both text and double/single-quoted attribute contexts, so a
+  // crafted model name (e.g. from a rogue/poisoned model server on the LAN)
+  // cannot break out of value="…" / class="…" and inject attributes.
   return String(s == null ? '' : s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 function _injectStyle() {

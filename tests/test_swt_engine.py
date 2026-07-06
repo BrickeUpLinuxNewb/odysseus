@@ -262,6 +262,31 @@ def test_condense_returns_short_context_unchanged():
     assert asyncio.run(go()) == "short context"
 
 
+def test_condense_bounds_chunk_fanout():
+    # A pathologically large context must not fan out into unbounded model
+    # calls: the per-pass chunk cap limits how many completions run.
+    from src.swt.recursive import _MAX_CHUNKS_PER_PASS
+
+    class Counter:
+        def __init__(self):
+            self.calls = 0
+
+        async def complete(self, model, messages, *, temperature=0.7, max_tokens=1024, owner=None):
+            self.calls += 1
+            return "relevant fact"
+
+    huge = "\n\n".join(f"section {i} " * 200 for i in range(5000))
+    counter = Counter()
+
+    async def go():
+        return await condense_context(
+            counter, "q", huge, "m", budget_chars=6000, chunk_chars=6000, max_depth=1
+        )
+
+    asyncio.run(go())
+    assert counter.calls <= _MAX_CHUNKS_PER_PASS
+
+
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main([__file__, "-v"]))
