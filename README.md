@@ -44,6 +44,7 @@ Native installs, GPU notes, Windows/macOS instructions, HTTPS, and configuration
 - **Cookbook** — hardware-aware model recommendations, downloads, and serving.
 - **Deep Research** — multi-step web research with source reading and report generation.
 - **Compare** — blind side-by-side model testing and synthesis.
+- **SWT Loop** — automated generator → critic → analyzer loop that diagnoses why an answer fell short and fixes it across rounds, with a cognitive model that learns what you accept. See [docs/swt.md](docs/swt.md).
 - **Documents** — writing-first editor with AI edits, suggestions, Markdown, HTML, CSV, and syntax highlighting.
 - **Email** — IMAP/SMTP inbox with triage, tags, summaries, reminders, and reply drafts.
 - **Notes, Tasks + Calendar** — reminders, todos, scheduled agent tasks, and CalDAV sync.
