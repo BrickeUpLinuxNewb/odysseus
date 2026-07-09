@@ -32,9 +32,13 @@ class OdysseusModelAdapter:
     """Routes SWT calls through Odysseus's ``_resolve_model`` + ``llm_call_async``.
 
     ``model`` may be a bare model name (``"hermes3:8b"``) or the
-    ``name@endpoint`` form the rest of Odysseus accepts. Resolution is cached
-    per (spec, owner) for the life of the adapter so a single loop does not
-    re-probe endpoints on every round.
+    ``name@endpoint`` form the rest of Odysseus accepts. Because every SWT
+    role (generator / critic / analyzer / librarian) passes its own spec
+    through here, ``name@endpoint`` per role is how a loop spans multiple
+    nodes -- e.g. generator on the GPU box, critic on a second machine --
+    with no extra plumbing. Resolution is cached per (spec, owner) for the
+    life of the adapter so a single loop does not re-probe endpoints on
+    every round.
     """
 
     def __init__(self) -> None:
