@@ -88,6 +88,8 @@ output.txt.txt
 # Reports and temp files
 reports/
 tasks/
+# ...but the eval-harness task sets are source, not runtime state
+!evals/tasks/
 scripts/compound/*.json
 research_data/
 **/search_analytics.json
@@ -102,3 +104,6 @@ compound.config.json
 *.error.log
 _scratch/
 /odysseus/
+
+# Generated handoff PDF (regenerable from SESSION_HANDOFF.md)
+SESSION_HANDOFF.pdf
