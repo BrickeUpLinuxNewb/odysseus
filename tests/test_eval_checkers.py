@@ -78,6 +78,24 @@ def test_numeric_strict_requires_single_number():
 def test_numeric_comma_grouping():
     assert check("numeric", "Total: $1,849.50", {"value": 1849.5, "tol": 0.01})[0] == 1.0
 
+def test_numeric_answer_marker_scores_only_declared_answer():
+    # The confound fix: a verbose chain-of-thought that mentions the right value
+    # mid-work but DECLARES a wrong final answer must fail; only the marked
+    # answer is scored.
+    expect = {"value": 108, "tol": 0.5, "answer_prefix": "ANSWER:"}
+    right = "240*3/8=90; +45=135; -20% = 108. ANSWER: 108"
+    wrong = "...that gives 108 somewhere... ANSWER: 200"
+    assert check("numeric", right, expect)[0] == 1.0
+    assert check("numeric", wrong, expect)[0] == 0.0
+    # No marker in output -> falls back to the last number stated.
+    assert check("numeric", "after working it out, 108", expect)[0] == 1.0
+    assert check("numeric", "the total is 200", expect)[0] == 0.0
+
+def test_numeric_marker_derives_passing_output():
+    expect = {"value": 65, "tol": 0, "answer_prefix": "ANSWER:"}
+    assert derive_passing_output("numeric", expect) == "ANSWER: 65"
+    assert check("numeric", derive_passing_output("numeric", expect), expect)[0] == 1.0
+
 
 # -- json -----------------------------------------------------------------------
 

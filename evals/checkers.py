@@ -148,15 +148,34 @@ def _check_numeric(output: str, expect: Dict[str, Any]) -> Tuple[float, str]:
         value = float(expect["value"])
     except (KeyError, TypeError, ValueError):
         return 0.0, "task error: numeric needs numeric 'value'"
-    numbers = all_numbers(output)
-    if not numbers:
-        return 0.0, "no number in output"
     tol = float(expect.get("tol", 0.0))
     rel_tol = float(expect.get("rel_tol", 0.0))
     limit = max(tol, abs(value) * rel_tol)
-    # Lenient by default: models restate operands ("17 x 23 = 391"), so any
-    # in-tolerance number passes. ``strict: true`` demands exactly one number
-    # in the output -- use it where hedging-with-candidates must fail.
+
+    # Answer-marker mode: score ONLY the model's declared final answer, not any
+    # intermediate number in its working. This removes two confounds at once --
+    # a verbose chain-of-thought no longer wins by emitting a matching
+    # intermediate value, and reasoning is no longer suppressed (so a math task
+    # measures math, not instruction-compliance-under-a-terseness-order). The
+    # prompt must ask the model to end with e.g. "ANSWER: <number>".
+    prefix = expect.get("answer_prefix")
+    if prefix:
+        idx = output.lower().rfind(prefix.lower())
+        candidates = all_numbers(output[idx + len(prefix):]) if idx != -1 else []
+        if not candidates:
+            candidates = all_numbers(output)[-1:]  # fallback: last number stated
+        if not candidates:
+            return 0.0, f"no number after {prefix!r}"
+        got = candidates[0]
+        if abs(got - value) <= limit:
+            return 1.0, f"got {got}"
+        return 0.0, f"final answer {got}, expected {value} (±{limit})"
+
+    numbers = all_numbers(output)
+    if not numbers:
+        return 0.0, "no number in output"
+    # Legacy lenient path (no marker): models restate operands ("17 x 23 = 391"),
+    # so any in-tolerance number passes. ``strict: true`` demands exactly one.
     if expect.get("strict") and len(numbers) != 1:
         return 0.0, f"strict: expected exactly one number, got {len(numbers)}"
     hits = [n for n in numbers if abs(n - value) <= limit]
@@ -242,7 +261,8 @@ def derive_passing_output(kind: str, expect: Dict[str, Any]) -> Optional[str]:
     if kind == "contains_all":
         return ", ".join(str(v) for v in expect.get("values", []))
     if kind == "numeric":
-        return str(expect.get("value", ""))
+        prefix = expect.get("answer_prefix")
+        return f"{prefix} {expect.get('value', '')}" if prefix else str(expect.get("value", ""))
     if kind == "json":
         obj: Dict[str, Any] = {}
         for key in expect.get("required", []):
